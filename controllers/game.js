@@ -86,7 +86,7 @@ const newMatch = async (userID, username, waiting) => {
         }
         resolve(response)
         match.white = {
-          userID,
+          id: userID,
           username,
         }
         makeRoom(match)
@@ -102,7 +102,7 @@ const newMatch = async (userID, username, waiting) => {
       waiting.opp.emit("join", {
         gameID: playRoomId,
         black: {
-          userID,
+          id: userID,
           username
         }
       })
