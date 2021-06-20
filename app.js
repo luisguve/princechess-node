@@ -32,18 +32,10 @@ app.use(cookieSession({
 }))
 
 // Routes
-// app.use("/", username)
-// app.use("/", game)
-// app.use("/", livedata)
 app.use("/", [username, game/*, livedata*/])
 
 app.use(notFound)
 app.use(errorHandlerMiddleware)
-// app.get("/play", lookupMatch)
-// app.get("/invite", )
-// app.get("/game", )
-// app.get("/wait", )
-// app.get("/join", )
 // app.get("/livedata", )
 
 const PORT = process.env.PORT || 8000
