@@ -1,8 +1,8 @@
 const express = require("express")
-const { lookupMatch } = require("../controllers/game")
+const { newGame } = require("../controllers/game")
 
 const router = express.Router()
 
-router.get("/play", lookupMatch)
+router.get("/play", newGame)
 
 module.exports = router

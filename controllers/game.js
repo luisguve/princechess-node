@@ -121,7 +121,7 @@ const newMatch = async (userID, username, waiting) => {
   })
 }
 
-const lookupMatch = asyncWrapper(async (req, res ) => {
+const newGame = asyncWrapper(async (req, res ) => {
   const { session } = req
   // Get user ID and username from session. If not present, set one.
   let { userID, username } = session
@@ -167,5 +167,5 @@ const lookupMatch = asyncWrapper(async (req, res ) => {
 })
 
 module.exports = {
-  lookupMatch
+  newGame
 }
