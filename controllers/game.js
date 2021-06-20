@@ -1,60 +1,98 @@
-const { nanoid } require("nanoid")
+const { nanoid } = require("nanoid")
 const EventEmitter = require('events')
+const { Mutex } = require("async-mutex")
+const Match = require("../models/Match")
+const asyncWrapper = require('../middleware/async')
+
+const mutex = new Mutex()
 
 const waitings = {
-  _1min = {
+  _1min: {
     player: null,
     opp: new EventEmitter()
   },
-  _3min = {
+  _3min: {
     player: null,
     opp: new EventEmitter()
   },
-  _5min = {
+  _5min: {
     player: null,
     opp: new EventEmitter()
   },
-  _10min = {
+  _10min: {
     player: null,
     opp: new EventEmitter()
   }
 }
 
 // Make new room by storing match into the database
-const makeRoom = async match => {
-
+const makeRoom = match => {
+  Task.create(match)
 }
 
-const newMatch = (userID, username, waiting) => {
+const newMatch = /*async*/ (userID, username, waiting) => {
   let response = {
     playRoomId: "",
     color: "",
     oppUsername: ""
   }
+  // Avoid race condition here. Multiple requests need access to the same
+  // resource: the parameter waiting, which belongs to waitings, a globally
+  // scoped constant declared on line 7. This resource will be read and
+  // written asynchronously.
   let waitForOpponent = true
-  if (!waiting.player) {
-    waiting.player = {
-      userID,
-      username
-    }
-  } else {
-    if (waiting.player.userID === userID) {
-      // The same user waiting for opponent is the opponent.
-      // Reset user waiting for opponent.
+  mutex.acquire().then(release => {
+    if (!waiting.player) {
       waiting.player = {
         userID,
         username
       }
-      waiting.opp.emit("cancel")
     } else {
-      // A player is ALREADY waiting for opponent.
-      waitForOpponent = false
+      if (waiting.player.userID === userID) {
+        // The same user waiting for opponent is the opponent.
+        // Reset user waiting for opponent.
+        waiting.player = {
+          userID,
+          username
+        }
+        waiting.opp.emit("cancel")
+      } else {
+        // A player is ALREADY waiting for opponent.
+        waitForOpponent = false
+      }
     }
-  }
+    release()
+  })
+  /*const waitForOpponent = await mutex.runExlusive(() => {
+    let waitForOpponent = true
+    if (!waiting.player) {
+      waiting.player = {
+        userID,
+        username
+      }
+    } else {
+      if (waiting.player.userID === userID) {
+        // The same user waiting for opponent is the opponent.
+        // Reset user waiting for opponent.
+        waiting.player = {
+          userID,
+          username
+        }
+        waiting.opp.emit("cancel")
+      } else {
+        // A player is ALREADY waiting for opponent.
+        waitForOpponent = false
+      }
+    }
+    return waitForOpponent
+  })*/
   return new Promise((resolve, reject) => {
     // Wait opponent for up to 5 seconds.
     const deadline = setTimeout(() => {
-      waiting.player = null
+      mutex.acquire().then(release => {
+        waiting.player = null
+        release()
+      })
       resolve(response)
     }, 5000)
     // Check whether to wait for an opponent to join.
@@ -86,7 +124,7 @@ const newMatch = (userID, username, waiting) => {
         gameID: playRoomId,
         black: {
           userID,
-          username,
+          username
         }
       })
       response = {
@@ -95,13 +133,16 @@ const newMatch = (userID, username, waiting) => {
         oppUsername: waiting.player.username
       }
       resolve(response)
-      waiting.player = null
+      // Release player spot.
+      mutex.acquire().then(release => {
+        waiting.player = null
+        release()
+      })
     }
   })
 }
 
-const lookupMatch = (req, res ) => {
-  // ↓ JS code ↓
+const lookupMatch = asyncWrapper(async (req, res ) => {
   const { session } = req
   // Get user ID and username from session. If not present, set one.
   let { userID, username } = session
@@ -112,7 +153,7 @@ const lookupMatch = (req, res ) => {
   if (!username) {
     username = process.env.DEFAULT_USERNAME
   }
-  const { clock } = req.params
+  const { clock } = req.query
   if (!clock) {
     return res.status(400).send("Empty clock time")
   }
@@ -143,49 +184,7 @@ const lookupMatch = (req, res ) => {
     res.status(200).json(data)
   })
   .catch(() => res.status(500).send("Something went wrong"))
-  // ↑ JS code ↑
-  // 
-  // ↓ Go code ↓
-  var (
-    waiting *user
-    waitOpp chan match
-  )
-  switch vars["clock"] {
-  case "1":
-    waiting = &rout.waiting1min
-    waitOpp = rout.opp1min
-  case "3":
-    waiting = &rout.waiting3min
-    waitOpp = rout.opp3min
-  case "5":
-    waiting = &rout.waiting5min
-    waitOpp = rout.opp5min
-  case "10":
-    waiting = &rout.waiting10min
-    waitOpp = rout.opp10min
-  default:
-    http.Error(w, "Invalid clock time: " + vars["clock"], http.StatusBadRequest)
-    return
-  }
-
-  playRoomId, color, opp := rout.newMatch(uid, username, waiting, waitOpp)
-
-  res := map[string]string{
-    "color": color,
-    "roomId": playRoomId,
-    "opp": opp,
-  }
-
-  resB, err := json.Marshal(res)
-  if err != nil {
-    log.Println("Could not marshal response:", err)
-    http.Error(w, err.Error(), http.StatusInternalServerError)
-  }
-
-  if _, err := w.Write(resB); err != nil {
-    log.Println(err)
-  }
-}
+})
 
 module.exports = {
   lookupMatch

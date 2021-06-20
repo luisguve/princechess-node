@@ -14,16 +14,14 @@ const errorHandlerMiddleware = require("./middleware/error-handler")
 // Routes
 const username = require("./routes/username")
 const game = require("./routes/game")
-const livedata = require("./routes/livedata")
+//const livedata = require("./routes/livedata")
 
 const app = express()
 // Middleware to read JSON and form data from request body,
 // so that they are available in req.body
 app.use(bodyParser.json())
-app.use(bodyParser.urlencoded())
+app.use(bodyParser.urlencoded({extended:true}))
 
-app.use(errorHandlerMiddleware)
-app.use(notFound)
 app.use(cors({
   origin: ["http://localhost:8080", "https://princechess.netlify.app"],
   credentials: true
@@ -37,8 +35,10 @@ app.use(cookieSession({
 // app.use("/", username)
 // app.use("/", game)
 // app.use("/", livedata)
-app.use("/", [username, game, livedata])
+app.use("/", [username, game/*, livedata*/])
 
+app.use(notFound)
+app.use(errorHandlerMiddleware)
 // app.get("/play", lookupMatch)
 // app.get("/invite", )
 // app.get("/game", )

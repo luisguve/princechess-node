@@ -6,7 +6,7 @@ const getUsername = (req, res) => {
 const postUsername = (req, res) => {
   const username = req.body.username
   req.session.username = username
-  res.status(200).end()
+  res.status(201).send(username)
 }
 
 module.exports = {
