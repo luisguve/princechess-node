@@ -27,10 +27,13 @@ const waitings = {
 
 // Make new room by storing match into the database
 const makeRoom = match => {
-  Task.create(match)
+  Match.create({
+    ...match,
+    _id: match.gameID
+  })
 }
 
-const newMatch = /*async*/ (userID, username, waiting) => {
+const newMatch = async (userID, username, waiting) => {
   let response = {
     playRoomId: "",
     color: "",
@@ -38,54 +41,30 @@ const newMatch = /*async*/ (userID, username, waiting) => {
   }
   // Avoid race condition here. Multiple requests need access to the same
   // resource: the parameter waiting, which belongs to waitings, a globally
-  // scoped constant declared on line 7. This resource will be read and
+  // scoped constant declared on line 9. This resource will be read and
   // written asynchronously.
   let waitForOpponent = true
-  mutex.acquire().then(release => {
-    if (!waiting.player) {
+  const release = await mutex.acquire()
+  if (!waiting.player) {
+    waiting.player = {
+      userID,
+      username
+    }
+  } else {
+    if (waiting.player.userID === userID) {
+      // The same user waiting for opponent is the opponent.
+      // Reset user waiting for opponent.
       waiting.player = {
         userID,
         username
       }
+      waiting.opp.emit("cancel")
     } else {
-      if (waiting.player.userID === userID) {
-        // The same user waiting for opponent is the opponent.
-        // Reset user waiting for opponent.
-        waiting.player = {
-          userID,
-          username
-        }
-        waiting.opp.emit("cancel")
-      } else {
-        // A player is ALREADY waiting for opponent.
-        waitForOpponent = false
-      }
+      // A player is ALREADY waiting for opponent.
+      waitForOpponent = false
     }
-    release()
-  })
-  /*const waitForOpponent = await mutex.runExlusive(() => {
-    let waitForOpponent = true
-    if (!waiting.player) {
-      waiting.player = {
-        userID,
-        username
-      }
-    } else {
-      if (waiting.player.userID === userID) {
-        // The same user waiting for opponent is the opponent.
-        // Reset user waiting for opponent.
-        waiting.player = {
-          userID,
-          username
-        }
-        waiting.opp.emit("cancel")
-      } else {
-        // A player is ALREADY waiting for opponent.
-        waitForOpponent = false
-      }
-    }
-    return waitForOpponent
-  })*/
+  }
+  release()
   return new Promise((resolve, reject) => {
     // Wait opponent for up to 5 seconds.
     const deadline = setTimeout(() => {
@@ -128,7 +107,7 @@ const newMatch = /*async*/ (userID, username, waiting) => {
         }
       })
       response = {
-        playRoomId,
+        playRoomId: playRoomId,
         color: "black",
         oppUsername: waiting.player.username
       }
@@ -160,30 +139,31 @@ const lookupMatch = asyncWrapper(async (req, res ) => {
   let waiting
   switch (clock) {
     case "1":
-    waiting = waitings[_1min]
+    waiting = waitings["_1min"]
     break
     case "3":
-    waiting = waitings[_3min]
+    waiting = waitings["_3min"]
     break
     case "5":
-    waiting = waitings[_5min]
+    waiting = waitings["_5min"]
     break
     case "10":
-    waiting = waitings[_10min]
+    waiting = waitings["_10min"]
     break
     default:
     return res.status(400).send(`${clock} is not a valid clock`)
   }
-  newMatch(userID, username, waiting)
-  .then(({playRoomId, color, oppUsername}) => {
-    const data = {
-      "color": color,
-      "roomId": playRoomId,
-      "opp": oppUsername
-    }
-    res.status(200).json(data)
-  })
-  .catch(() => res.status(500).send("Something went wrong"))
+  const {
+    playRoomId,
+    color,
+    oppUsername
+  } = await newMatch(userID, username, waiting)
+  const data = {
+    "color": color,
+    "roomId": playRoomId,
+    "opp": oppUsername
+  }
+  res.status(200).json(data)
 })
 
 module.exports = {
