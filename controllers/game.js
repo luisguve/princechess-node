@@ -1,8 +1,9 @@
 const { nanoid } = require("nanoid")
 const { waitings, newMatch, getRoom } = require("./match")
-const asyncWrapper = require('../middleware/async')
+const asyncWrapper = require("../middleware/async")
+const { createCustomError } = require("../errors/custom-error")
 
-const newGame = asyncWrapper(async (req, res ) => {
+const newGame = asyncWrapper(async (req, res, next) => {
   const { session } = req
   // Get user ID and username from session. If not present, set one.
   let { userID, username } = session
@@ -15,7 +16,7 @@ const newGame = asyncWrapper(async (req, res ) => {
   }
   const { clock } = req.query
   if (!clock) {
-    return res.status(400).send("Empty clock time")
+    return next(createCustomError("Empty clock time", 400))
   }
   let waiting
   switch (clock) {
@@ -32,13 +33,13 @@ const newGame = asyncWrapper(async (req, res ) => {
     waiting = waitings["_10min"]
     break
     default:
-    return res.status(400).send(`${clock} is not a valid clock`)
+    return next(createCustomError(`${clock} is not a valid clock`, 400))
   }
   const {
     playRoomId,
     color,
     oppUsername
-  } = await newMatch(userID, username, waiting)
+  } = await newMatch(userID, username, waiting, Number(clock))
   const data = {
     "color": color,
     "roomId": playRoomId,
@@ -50,21 +51,14 @@ const newGame = asyncWrapper(async (req, res ) => {
 const joinGame = asyncWrapper(async (req, res, next) => {
   // Get user ID from session.
   let { session: { userID, username } } = req
-  if (!userID) {
-    return res.status(403).send("Unknown user")
-  }
-  const { id:gameID, clock } = req.query
-  if (!clock) {
-    return next(createCustomError("Unset clock", 400))
-  }
-  const mins = Number(clock)
-  if (isNaN(mins)) {
-    return next(createCustomError(`Clock must be a number. Was ${clock}`, 400))
-  }
+  if (!userID) return next(createCustomError("Unknown user", 401))
+
+  const { id:gameID } = req.query
+  if (!gameID) return next(createCustomError("Unset ID", 400))
+
   const match = await getRoom(gameID)
-  if (!match) {
-    return next(createCustomError("Match not found", 404))
-  }
+  if (!match) return next(createCustomError("Match not found", 404))
+
   let color
   switch (userID) {
     case match.white.id:
@@ -77,7 +71,7 @@ const joinGame = asyncWrapper(async (req, res, next) => {
     return next(createCustomError("User is neither black nor white", 403))
   }
   if (!username) username = process.env.DEFAULT_USERNAME
-  res.status(200).json({msg: "Starting game...", color})
+  res.status(200).json({match, color})
   //
   // ↓ Go code ↓
   /*cleanup := func() {
