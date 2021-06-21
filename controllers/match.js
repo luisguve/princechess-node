@@ -32,6 +32,9 @@ const makeRoom = match => {
   })
 }
 
+// Get room by it's ID
+const getRoom = async gameID => Match.findOne({_id: gameID})
+
 const newMatch = async (userID, username, waiting) => {
   let response = {
     playRoomId: "",
@@ -122,5 +125,6 @@ const newMatch = async (userID, username, waiting) => {
 
 module.exports = {
   waitings,
-  newMatch
+  newMatch,
+  getRoom
 }
