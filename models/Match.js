@@ -9,7 +9,8 @@ const MatchSchema = new mongoose.Schema({
   black: {
     id: String,
     username: String
-  }
+  },
+  clock: Number
 })
 
 module.exports = mongoose.model("Match", MatchSchema)

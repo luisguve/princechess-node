@@ -35,7 +35,7 @@ const makeRoom = match => {
 // Get room by it's ID
 const getRoom = async gameID => Match.findOne({_id: gameID})
 
-const newMatch = async (userID, username, waiting) => {
+const newMatch = async (userID, username, waiting, clock) => {
   let response = {
     playRoomId: "",
     color: "",
@@ -91,6 +91,7 @@ const newMatch = async (userID, username, waiting) => {
           id: userID,
           username,
         }
+        match.clock = clock
         makeRoom(match)
       })
       waiting.opp.on("cancel", () => {
